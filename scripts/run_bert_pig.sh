@@ -14,7 +14,7 @@ python train.py --data_dir ./data/DocRED \
 --num_train_epochs 30.0 \
 --seed 66 \
 --num_class 97 \
---save_path ./saved_model/run_bert.pth
+--save_path ./saved_model/run_bert_pig.pth
 
 
 # python train.py --data_dir ./data/DocRED \

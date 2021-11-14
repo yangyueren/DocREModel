@@ -39,8 +39,7 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
                 entity_end.append((sent_id, pos[1] - 1,))
         for i_s, sent in enumerate(sample['sents']):
             new_map = {}
-            if i_s != len(sample['sents'])-1:
-                sent.append('[SEP]')
+            
             for i_t, token in enumerate(sent):
                 tokens_wordpiece = tokenizer.tokenize(token)
                 if (i_s, i_t) in entity_start:

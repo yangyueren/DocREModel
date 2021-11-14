@@ -13,6 +13,20 @@ from utils import set_seed, collate_fn
 from prepro import read_docred
 from evaluation import to_official, official_evaluate
 import wandb
+from tqdm import tqdm
+
+import logging
+import logging.handlers
+import datetime
+
+logger = logging.getLogger('mylogger')
+logger.setLevel(logging.DEBUG)
+
+rf_handler = logging.FileHandler('./log/output.log')
+rf_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+
+logger.addHandler(rf_handler)
+
 
 
 def train(args, model, train_features, dev_features, test_features):
@@ -25,9 +39,11 @@ def train(args, model, train_features, dev_features, test_features):
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps)
         print("Total steps: {}".format(total_steps))
         print("Warmup steps: {}".format(warmup_steps))
+
+
         for epoch in train_iterator:
             model.zero_grad()
-            for step, batch in enumerate(train_dataloader):
+            for step, batch in tqdm(enumerate(train_dataloader),desc="pig"):
                 model.train()
                 inputs = {'input_ids': batch[0].to(args.device),
                           'attention_mask': batch[1].to(args.device),
@@ -44,12 +60,15 @@ def train(args, model, train_features, dev_features, test_features):
                         torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), args.max_grad_norm)
                     optimizer.step()
                     scheduler.step()
+                    
                     model.zero_grad()
                     num_steps += 1
                 wandb.log({"loss": loss.item()}, step=num_steps)
+                logger.info({"loss": loss.item()})
                 if (step + 1) == len(train_dataloader) - 1 or (args.evaluation_steps > 0 and num_steps % args.evaluation_steps == 0 and step % args.gradient_accumulation_steps == 0):
                     dev_score, dev_output = evaluate(args, model, dev_features, tag="dev")
                     wandb.log(dev_output, step=num_steps)
+                    logger.info(dev_output)
                     print(dev_output)
                     if dev_score > best_score:
                         best_score = dev_score
