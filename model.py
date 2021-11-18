@@ -3,6 +3,7 @@ import torch.nn as nn
 from opt_einsum import contract
 from long_seq import process_long_input
 from losses import ATLoss
+from transe_loss import TransELoss
 import copy
 import torch.nn.functional as F
 
@@ -16,14 +17,15 @@ class DocREModel(nn.Module):
 
         self.head_extractor = nn.Linear(2 * config.hidden_size, emb_size)
         self.tail_extractor = nn.Linear(2 * config.hidden_size, emb_size)
-        self.bilinear = nn.Linear(emb_size * block_size, config.num_labels)
+        self.bilinear = nn.Linear(emb_size * block_size, config.num_labels) # config.num_labels is 97
 
         self.attn1 = nn.Linear(emb_size*2, 1)
+        self.transe = TransELoss(emb_size)
         
 
         self.emb_size = emb_size
         self.block_size = block_size
-        self.num_labels = num_labels
+        self.num_labels = num_labels # this num_labels is 4
 
     def encode(self, input_ids, attention_mask):
         config = self.config
@@ -43,7 +45,7 @@ class DocREModel(nn.Module):
         hss, tss, rss = [], [], []
         h_to_entity_pos_index, t_to_entity_pos_index = [], []
         # entity_pos[0][8] 是一个e -> [(72, 78), (72, 78)]，放了他的mentions
-        for i in range(len(entity_pos)):
+        for i in range(len(entity_pos)): # 对每一篇文章处理
             entity_embs, entity_atts = [], []
             for e in entity_pos[i]:
                 if len(e) > 1:
@@ -51,8 +53,8 @@ class DocREModel(nn.Module):
                     for start, end in e:
                         if start + offset < c:
                             # In case the entity mention is truncated due to limited max seq length.
-                            # e_emb.append(sequence_output[i, start + offset])
-                            e_emb.append(torch.mean(sequence_output[i, start + offset:end+offset], dim=0)) # yyybug
+                            e_emb.append(sequence_output[i, start + offset])
+                            # e_emb.append(torch.mean(sequence_output[i, start + offset:end+offset], dim=0)) # yyybug
                             e_att.append(attention[i, :, start + offset])
                     if len(e_emb) > 0:
                         e_emb = torch.logsumexp(torch.stack(e_emb, dim=0), dim=0)
@@ -63,8 +65,8 @@ class DocREModel(nn.Module):
                 else:
                     start, end = e[0]
                     if start + offset < c:
-                        # e_emb = sequence_output[i, start + offset]
-                        e_emb = torch.mean(sequence_output[i, start + offset:end+offset], dim=0) # yyybug
+                        e_emb = sequence_output[i, start + offset]
+                        # e_emb = torch.mean(sequence_output[i, start + offset:end+offset], dim=0) # yyybug
                         e_att = attention[i, :, start + offset]
                     else:
                         e_emb = torch.zeros(self.config.hidden_size).to(sequence_output)
@@ -196,7 +198,16 @@ class DocREModel(nn.Module):
         sequence_output, attention = self.encode(input_ids, attention_mask)
         
         hs, rs, ts, hss_list, rss_list, tss_list = self.get_hrt(sequence_output, attention, entity_pos, hts)
-        hs, ts = self.update_ht(input_ids, sequence_output, entity_pos, hts, hss_list, rss_list, tss_list)
+        
+        # hs, ts = self.update_ht(input_ids, sequence_output, entity_pos, hts, hss_list, rss_list, tss_list)
+        loss_t = torch.tensor(0.0).to(sequence_output.device)
+        # import pdb; pdb.set_trace()
+        if labels is not None:
+            
+            rels = [torch.tensor(label) for label in labels]
+            rels = torch.cat(rels, dim=0).to(sequence_output.device)
+            loss_t = self.transe(hs, rs, ts, rels)
+
 
         hs = torch.tanh(self.head_extractor(torch.cat([hs, rs], dim=1)))
         ts = torch.tanh(self.tail_extractor(torch.cat([ts, rs], dim=1)))
@@ -210,5 +221,5 @@ class DocREModel(nn.Module):
             labels = [torch.tensor(label) for label in labels]
             labels = torch.cat(labels, dim=0).to(logits)
             loss = self.loss_fnt(logits.float(), labels.float())
-            output = (loss.to(sequence_output),) + output
+            output = (loss.to(sequence_output) + loss_t,) + output
         return output

@@ -1,11 +1,11 @@
-python train.py --data_dir ./data/DocRED \
+CUDA_VISIBLE_DEVICES=1 python train.py --data_dir ./data/DocRED \
 --transformer_type bert \
 --model_name_or_path ./pretrain_models/bert-base-cased \
 --train_file train_annotated.json \
 --dev_file dev.json \
 --test_file test.json \
 --train_batch_size 4 \
---test_batch_size 8 \
+--test_batch_size 4 \
 --gradient_accumulation_steps 1 \
 --num_labels 4 \
 --learning_rate 5e-5 \
@@ -14,7 +14,9 @@ python train.py --data_dir ./data/DocRED \
 --num_train_epochs 30.0 \
 --seed 66 \
 --num_class 97 \
---save_path ./saved_model/run_bert.pth
+--save_path ./saved_model/run_bert_transe.pth
+# --load_path ./saved_model/test.pth \
+# --checkpoint
 
 
 # python train.py --data_dir ./data/DocRED \

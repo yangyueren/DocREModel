@@ -60,7 +60,7 @@ def train(args, model, train_features, dev_features, test_features):
                         torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), args.max_grad_norm)
                     optimizer.step()
                     scheduler.step()
-                    
+
                     model.zero_grad()
                     num_steps += 1
                 wandb.log({"loss": loss.item()}, step=num_steps)
@@ -72,11 +72,15 @@ def train(args, model, train_features, dev_features, test_features):
                     print(dev_output)
                     if dev_score > best_score:
                         best_score = dev_score
-                        pred = report(args, model, test_features)
-                        with open("result.json", "w") as fh:
-                            json.dump(pred, fh)
+                        # yyybug disable predict on test
+                        # pred = report(args, model, test_features) 
+                        # with open("result.json", "w") as fh:
+                        #     json.dump(pred, fh)
                         if args.save_path != "":
-                            torch.save(model.state_dict(), args.save_path)
+                            torch.save({'model_state_dict':model.state_dict(),
+                                        'optimizer_state_dict': optimizer.state_dict(),
+                                        'epoch': epoch}, 
+                                        args.save_path)
         return num_steps
 
     new_layer = ["extractor", "bilinear"]
@@ -85,7 +89,20 @@ def train(args, model, train_features, dev_features, test_features):
         {"params": [p for n, p in model.named_parameters() if any(nd in n for nd in new_layer)], "lr": 1e-4},
     ]
 
+    
+
     optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon)
+    if args.checkpoint and args.load_path != '':
+        ck = torch.load(args.load_path)
+        model.load_state_dict(ck['model_state_dict'])
+        optimizer.load_state_dict(ck['optimizer_state_dict'])
+        epoch = ck['epoch']
+        # args.num_train_epochs = (int(args.num_train_epochs) - int(epoch))
+        print(f'Loading checkpoint Success.')
+        logger.info(f'Loading checkpoint Success.')
+        # print(f'Loading checkpoint, start from epoch: {epoch}')
+    
+    
     model, optimizer = amp.initialize(model, optimizer, opt_level="O1", verbosity=0)
     num_steps = 0
     set_seed(args)
@@ -114,6 +131,7 @@ def evaluate(args, model, features, tag="dev"):
 
     preds = np.concatenate(preds, axis=0).astype(np.float32)
     ans = to_official(preds, features)
+    best_f1, best_f1_ign = 0, 0
     if len(ans) > 0:
         best_f1, _, best_f1_ign, _ = official_evaluate(ans, args.data_dir)
     output = {
@@ -159,6 +177,7 @@ def main():
     parser.add_argument("--test_file", default="test.json", type=str)
     parser.add_argument("--save_path", default="", type=str)
     parser.add_argument("--load_path", default="", type=str)
+    parser.add_argument("--checkpoint", action='store_true')
 
     parser.add_argument("--config_name", default="", type=str,
                         help="Pretrained config name or path if not the same as model_name")
@@ -231,13 +250,13 @@ def main():
     model = DocREModel(config, model, num_labels=args.num_labels)
     model.to(0)
 
-    if args.load_path == "":  # Training
+    if args.load_path == "" or args.checkpoint:  # Training
         train(args, model, train_features, dev_features, test_features)
     else:  # Testing
         model = amp.initialize(model, opt_level="O1", verbosity=0)
-        model.load_state_dict(torch.load(args.load_path))
+        model.load_state_dict(torch.load(args.load_path)['model_state_dict'])
         dev_score, dev_output = evaluate(args, model, dev_features, tag="dev")
-        print(dev_output)
+        print(dev_score, dev_output)
         pred = report(args, model, test_features)
         with open("result.json", "w") as fh:
             json.dump(pred, fh)
