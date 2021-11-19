@@ -95,9 +95,10 @@ def train(args, model, train_features, dev_features, test_features):
     optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon)
     if args.checkpoint and args.load_path != '':
         ck = torch.load(args.load_path)
-        model.load_state_dict(ck['model_state_dict'])
-        optimizer.load_state_dict(ck['optimizer_state_dict'])
-        epoch = ck['epoch']
+        model.load_state_dict(ck, strict=False)
+        # model.load_state_dict(ck['model_state_dict'])
+        # optimizer.load_state_dict(ck['optimizer_state_dict'])
+        # epoch = ck['epoch']
         # args.num_train_epochs = (int(args.num_train_epochs) - int(epoch))
         print(f'Loading checkpoint Success.')
         logger.info(f'Loading checkpoint Success.')

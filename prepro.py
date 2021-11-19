@@ -22,7 +22,7 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
     if file_in == "":
         return None
     with open(file_in, "r") as fh:
-        data = json.load(fh)
+        data = json.load(fh)[:]
 
     for sample in tqdm(data, desc="Example"):
         sents = []
