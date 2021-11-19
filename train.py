@@ -79,6 +79,7 @@ def train(args, model, train_features, dev_features, test_features):
                         if args.save_path != "":
                             torch.save({'model_state_dict':model.state_dict(),
                                         'optimizer_state_dict': optimizer.state_dict(),
+                                        'scheduler_state_dict': scheduler.state_dict(),
                                         'epoch': epoch}, 
                                         args.save_path)
         return num_steps

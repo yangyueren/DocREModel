@@ -13,4 +13,7 @@ CUDA_VISIBLE_DEVICES=1 python train.py --data_dir ./dataset/docred \
 --warmup_ratio 0.06 \
 --num_train_epochs 30.0 \
 --seed 66 \
---num_class 97
+--num_class 97 \
+--save_path ./saved_model/run_bert_optloss.pth
+# --load_path ./saved_model/test.pth \
+# --checkpoint
