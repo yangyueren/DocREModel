@@ -118,3 +118,4 @@ nohup.out
 *.pyc
 /log
 /saved_model
+/dataset

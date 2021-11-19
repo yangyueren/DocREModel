@@ -1,6 +1,6 @@
-python train.py --data_dir ./dataset/docred \
+CUDA_VISIBLE_DEVICES=1 python train.py --data_dir ./dataset/docred \
 --transformer_type bert \
---model_name_or_path bert-base-cased \
+--model_name_or_path ./pretrain_models/bert-base-cased \
 --train_file train_annotated.json \
 --dev_file dev.json \
 --test_file test.json \
