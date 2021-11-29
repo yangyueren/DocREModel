@@ -1,5 +1,6 @@
 from tqdm import tqdm
 import ujson as json
+from common.mylogger import logger
 
 docred_rel2id = json.load(open('./dataset/docred/DocRED_baseline_metadata/rel2id.json', 'r'))
 cdr_rel2id = {'1:NR:2': 0, '1:CID:2': 1}
@@ -102,9 +103,9 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
                    }
         features.append(feature)
 
-    print("# of documents {}.".format(i_line))
-    print("# of positive examples {}.".format(pos_samples))
-    print("# of negative examples {}.".format(neg_samples))
+    logger.info("# of documents {}.".format(i_line))
+    logger.info("# of positive examples {}.".format(pos_samples))
+    logger.info("# of negative examples {}.".format(neg_samples))
     return features
 
 
@@ -214,8 +215,8 @@ def read_cdr(file_in, tokenizer, max_seq_length=1024):
                            'title': pmid,
                            }
                 features.append(feature)
-    print("Number of documents: {}.".format(len(features)))
-    print("Max document length: {}.".format(maxlen))
+    logger.info("Number of documents: {}.".format(len(features)))
+    logger.info("Max document length: {}.".format(maxlen))
     return features
 
 
@@ -325,6 +326,6 @@ def read_gda(file_in, tokenizer, max_seq_length=1024):
                            'title': pmid,
                            }
                 features.append(feature)
-    print("Number of documents: {}.".format(len(features)))
-    print("Max document length: {}.".format(maxlen))
+    logger.info("Number of documents: {}.".format(len(features)))
+    logger.info("Max document length: {}.".format(maxlen))
     return features

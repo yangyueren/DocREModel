@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 
 import numpy as np
 import torch
@@ -15,17 +16,12 @@ from evaluation import to_official, official_evaluate
 import wandb
 from tqdm import tqdm
 
-import logging
-import logging.handlers
-import datetime
 
-logger = logging.getLogger('mylogger')
-logger.setLevel(logging.DEBUG)
+from common.mylogger import logger
 
-rf_handler = logging.FileHandler('./log/output.log')
-rf_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
 
-logger.addHandler(rf_handler)
+
+
 
 
 
@@ -37,8 +33,8 @@ def train(args, model, train_features, dev_features, test_features):
         total_steps = int(len(train_dataloader) * num_epoch // args.gradient_accumulation_steps)
         warmup_steps = int(total_steps * args.warmup_ratio)
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps)
-        print("Total steps: {}".format(total_steps))
-        print("Warmup steps: {}".format(warmup_steps))
+        logger.info("Total steps: {}".format(total_steps))
+        logger.info("Warmup steps: {}".format(warmup_steps))
 
 
         for epoch in train_iterator:
@@ -55,6 +51,7 @@ def train(args, model, train_features, dev_features, test_features):
                 loss = outputs[0] / args.gradient_accumulation_steps
                 with amp.scale_loss(loss, optimizer) as scaled_loss:
                     scaled_loss.backward()
+                
                 if step % args.gradient_accumulation_steps == 0:
                     if args.max_grad_norm > 0:
                         torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), args.max_grad_norm)
@@ -64,12 +61,12 @@ def train(args, model, train_features, dev_features, test_features):
                     model.zero_grad()
                     num_steps += 1
                 wandb.log({"loss": loss.item()}, step=num_steps)
-                logger.info({"loss": loss.item()})
+                logger.debug({"loss": loss.item()})
                 if (step + 1) == len(train_dataloader) - 1 or (args.evaluation_steps > 0 and num_steps % args.evaluation_steps == 0 and step % args.gradient_accumulation_steps == 0):
                     dev_score, dev_output = evaluate(args, model, dev_features, tag="dev")
                     wandb.log(dev_output, step=num_steps)
                     logger.info(dev_output)
-                    print(dev_output)
+                    
                     if dev_score > best_score:
                         best_score = dev_score
                         # yyybug disable predict on test
@@ -100,12 +97,13 @@ def train(args, model, train_features, dev_features, test_features):
         # optimizer.load_state_dict(ck['optimizer_state_dict'])
         # epoch = ck['epoch']
         # args.num_train_epochs = (int(args.num_train_epochs) - int(epoch))
-        print(f'Loading checkpoint Success.')
+        
         logger.info(f'Loading checkpoint Success.')
-        # print(f'Loading checkpoint, start from epoch: {epoch}')
+        # logger.info(f'Loading checkpoint, start from epoch: {epoch}')
     
     
-    model, optimizer = amp.initialize(model, optimizer, opt_level="O1", verbosity=0)
+    model, optimizer = amp.initialize(model, optimizer, opt_level="O0", verbosity=0)
+    # model, optimizer = amp.initialize(model, optimizer, opt_level="O1", verbosity=0)
     num_steps = 0
     set_seed(args)
     model.zero_grad()
@@ -215,7 +213,13 @@ def main():
                         help="Number of relation types in dataset.")
 
     args = parser.parse_args()
+    
     wandb.init(project="DocRED")
+    # wandb.run.log_code(".")
+    # backup codes.
+    os.system(f"mkdir {wandb.run.dir}/codes; cp *.py {wandb.run.dir}/codes")
+    logger.info(f'run cp *.py {wandb.run.dir}/codes to copy python files to {wandb.run.dir}/codes')
+    
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     args.n_gpu = torch.cuda.device_count()
@@ -258,7 +262,7 @@ def main():
         model = amp.initialize(model, opt_level="O1", verbosity=0)
         model.load_state_dict(torch.load(args.load_path)['model_state_dict'])
         dev_score, dev_output = evaluate(args, model, dev_features, tag="dev")
-        print(dev_score, dev_output)
+        logger.info(dev_score, dev_output)
         pred = report(args, model, test_features)
         with open("result.json", "w") as fh:
             json.dump(pred, fh)

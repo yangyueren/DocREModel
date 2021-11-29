@@ -119,3 +119,5 @@ nohup.out
 /log
 /saved_model
 /dataset
+/common
+/script

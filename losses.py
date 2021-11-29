@@ -23,14 +23,15 @@ class ATLoss(nn.Module):
         logit1 = logits - (1 - p_mask) * 1e30
         pos_attn = logit1 - logit1[:, 0].unsqueeze(1)
         pos_attn = (1-F.softmax(pos_attn, dim=1)) * 1
-        loss1 = -(F.log_softmax(logit1, dim=-1) * labels * pos_attn).sum(1)
+        # loss1 = -(F.log_softmax(logit1, dim=-1) * labels * pos_attn).sum(1)
+        loss1 = -(F.log_softmax(logit1, dim=-1) * labels).sum(1)
 
         # Rank TH to negative classes
         logit2 = logits - (1 - n_mask) * 1e30
         neg_attn = logit2[:, 0].unsqueeze(1) - logit2
         neg_attn = (1-F.softmax(neg_attn, dim=1)) * 1
 
-        loss2 = torch.sum( -torch.log( (torch.exp(logit2)) / torch.sum( torch.exp(logit2) * neg_attn ) * th_label),   dim=1)
+        # loss2 = torch.sum( -torch.log( (torch.exp(logit2)) / torch.sum( torch.exp(logit2) * neg_attn ) * th_label),   dim=1)
 
         # original
         loss2 = -(F.log_softmax(logit2, dim=-1) * th_label).sum(1)
