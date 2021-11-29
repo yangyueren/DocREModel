@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
 from opt_einsum import contract
-from long_seq import process_long_input
-from losses import ATLoss
-from transe_loss import TransELoss
+from main_branch.long_seq import process_long_input
+from main_branch.losses import ATLoss
+from main_branch.transe_loss import TransELoss
 import copy
 import torch.nn.functional as F
 

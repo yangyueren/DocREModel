@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=1 python train.py --data_dir ./data/DocRED \
+CUDA_VISIBLE_DEVICES=1 python main_branch/train.py --data_dir ./dataset/DocRED \
 --transformer_type bert \
 --model_name_or_path ./pretrain_models/bert-base-cased \
 --train_file train_annotated.json \
@@ -14,7 +14,7 @@ CUDA_VISIBLE_DEVICES=1 python train.py --data_dir ./data/DocRED \
 --num_train_epochs 30.0 \
 --seed 66 \
 --num_class 97 \
---save_path ./saved_model/run_bert_transe.pth
+--save_path ./saved_model/test.pth
 # --load_path ./saved_model/test.pth \
 # --checkpoint
 

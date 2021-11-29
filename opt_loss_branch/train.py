@@ -8,25 +8,14 @@ import ujson as json
 from torch.utils.data import DataLoader
 from transformers import AutoConfig, AutoModel, AutoTokenizer
 from transformers.optimization import AdamW, get_linear_schedule_with_warmup
-from model import DocREModel
-from utils import set_seed, collate_fn
-from prepro import read_docred
-from evaluation import to_official, official_evaluate
+from opt_loss_branch.model import DocREModel
+from opt_loss_branch.utils import set_seed, collate_fn
+from opt_loss_branch.prepro import read_docred
+from opt_loss_branch.evaluation import to_official, official_evaluate
 import wandb
 from tqdm import tqdm
 
-import logging
-import logging.handlers
-import datetime
-
-logger = logging.getLogger('mylogger')
-logger.setLevel(logging.DEBUG)
-
-rf_handler = logging.FileHandler('./log/output.log')
-rf_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
-
-logger.addHandler(rf_handler)
-
+from common.mylogger import logger
 
 
 def train(args, model, train_features, dev_features, test_features):
@@ -64,7 +53,7 @@ def train(args, model, train_features, dev_features, test_features):
                     model.zero_grad()
                     num_steps += 1
                 wandb.log({"loss": loss.item()}, step=num_steps)
-                logger.info({"loss": loss.item()})
+                logger.debug({"loss": loss.item()})
                 if (step + 1) == len(train_dataloader) - 1 or (args.evaluation_steps > 0 and num_steps % args.evaluation_steps == 0 and step % args.gradient_accumulation_steps == 0):
                     dev_score, dev_output = evaluate(args, model, dev_features, tag="dev")
                     wandb.log(dev_output, step=num_steps)
