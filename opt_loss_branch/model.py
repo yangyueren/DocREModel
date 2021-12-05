@@ -206,7 +206,7 @@ class DocREModel(nn.Module):
             
             rels = [torch.tensor(label) for label in labels]
             rels = torch.cat(rels, dim=0).to(sequence_output.device)
-            loss_t = self.transe(hs, rs, ts, rels)
+            # loss_t = self.transe(hs, rs, ts, rels) # yyybug , remove transe
 
 
         hs = torch.tanh(self.head_extractor(torch.cat([hs, rs], dim=1)))

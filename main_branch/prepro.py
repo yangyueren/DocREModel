@@ -1,10 +1,14 @@
 from tqdm import tqdm
 import ujson as json
 
-docred_rel2id = json.load(open('./dataset/DocRED/DocRED_baseline_metadata/rel2id.json', 'r'))
+docred_rel2id = json.load(open('./dataset/docred/DocRED_baseline_metadata/rel2id.json', 'r'))
+docred_ner2id = json.load(open('/home/ps/disk_sdb/yyr/codes/ATLOP/dataset/docred/DocRED_baseline_metadata/ner2id.json', 'r'))
 cdr_rel2id = {'1:NR:2': 0, '1:CID:2': 1}
 gda_rel2id = {'1:NR:2': 0, '1:GDA:2': 1}
 
+from ast import literal_eval
+ner_pair2rel = json.load(open('/home/ps/disk_sdb/yyr/codes/ATLOP/common/ner_pair2rel.json', 'r'))
+ner_pair2rel = {literal_eval(k): v for k, v in ner_pair2rel.items()}
 
 def chunks(l, n):
     res = []
@@ -23,7 +27,7 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
         return None
     with open(file_in, "r") as fh:
         # yyybug
-        data = json.load(fh)
+        data = json.load(fh)[:20]
 
     for sample in tqdm(data, desc="Example"):
         sents = []
@@ -39,8 +43,7 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
                 entity_end.append((sent_id, pos[1] - 1,))
         for i_s, sent in enumerate(sample['sents']):
             new_map = {}
-            if i_s != len(sample['sents'])-1:
-                sent.append('[SEP]')
+            
             for i_t, token in enumerate(sent):
                 tokens_wordpiece = tokenizer.tokenize(token)
                 if (i_s, i_t) in entity_start:
@@ -58,11 +61,14 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
                 evidence = label['evidence']
                 r = int(docred_rel2id[label['r']])
                 if (label['h'], label['t']) not in train_triple:
+                    # import pdb; pdb.set_trace()
                     train_triple[(label['h'], label['t'])] = [
-                        {'relation': r, 'evidence': evidence}]
+                        {'relation': r, 'evidence': evidence
+                        }]
                 else:
                     train_triple[(label['h'], label['t'])].append(
-                        {'relation': r, 'evidence': evidence})
+                        {'relation': r, 'evidence': evidence,
+                        })
 
         entity_pos = []
         for e in entities:
@@ -73,13 +79,20 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
                 entity_pos[-1].append((start, end,))
 
         relations, hts = [], []
+        candidates_rel = []
         for h, t in train_triple.keys():
             relation = [0] * len(docred_rel2id)
+            h_ner, t_ner = 0, 0
             for mention in train_triple[h, t]:
                 relation[mention["relation"]] = 1
                 evidence = mention["evidence"]
             relations.append(relation)
             hts.append([h, t])
+
+            # import pdb; pdb.set_trace()
+            h_ner = docred_ner2id[entities[h][0]['type']]
+            t_ner = docred_ner2id[entities[t][0]['type']]
+            candidates_rel.append(ner_pair2rel[(h_ner, t_ner)])
             pos_samples += 1
 
         for h in range(len(entities)):
@@ -88,12 +101,16 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
                     relation = [1] + [0] * (len(docred_rel2id) - 1)
                     relations.append(relation)
                     hts.append([h, t])
+                    h_ner = docred_ner2id[entities[h][0]['type']]
+                    t_ner = docred_ner2id[entities[t][0]['type']]
+                    
+                    candidates_rel.append(ner_pair2rel[(h_ner, t_ner)])
                     neg_samples += 1
 
         assert len(relations) == len(entities) * (len(entities) - 1)
 
         sents = sents[:max_seq_length - 2]
-        # import pdb; pdb.set_trace()
+        
         input_ids = tokenizer.convert_tokens_to_ids(sents) # [115, 163, 2556, 14099]
         input_ids = tokenizer.build_inputs_with_special_tokens(input_ids) #[101, 115, 163, 2556, 14099, 102] add cls and sep
 
@@ -102,6 +119,7 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
                    'entity_pos': entity_pos,
                    'labels': relations,
                    'hts': hts,
+                   'candidates_rel': candidates_rel,
                    'title': sample['title'],
                    }
         features.append(feature)

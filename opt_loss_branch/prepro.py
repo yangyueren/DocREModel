@@ -1,7 +1,7 @@
 from tqdm import tqdm
 import ujson as json
 
-docred_rel2id = json.load(open('./data/DocRED/DocRED_baseline_metadata/rel2id.json', 'r'))
+docred_rel2id = json.load(open('./dataset/docred/DocRED_baseline_metadata/rel2id.json', 'r'))
 cdr_rel2id = {'1:NR:2': 0, '1:CID:2': 1}
 gda_rel2id = {'1:NR:2': 0, '1:GDA:2': 1}
 
@@ -23,7 +23,7 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
         return None
     with open(file_in, "r") as fh:
         # yyybug
-        data = json.load(fh)
+        data = json.load(fh)[:]
 
     for sample in tqdm(data, desc="Example"):
         sents = []
@@ -39,8 +39,7 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
                 entity_end.append((sent_id, pos[1] - 1,))
         for i_s, sent in enumerate(sample['sents']):
             new_map = {}
-            if i_s != len(sample['sents'])-1:
-                sent.append('[SEP]')
+            
             for i_t, token in enumerate(sent):
                 tokens_wordpiece = tokenizer.tokenize(token)
                 if (i_s, i_t) in entity_start:

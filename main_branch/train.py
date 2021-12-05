@@ -1,5 +1,7 @@
 import argparse
 import os
+import sys
+sys.path.append('.')
 
 import numpy as np
 import torch
@@ -19,13 +21,17 @@ from common.mylogger import logger
 
 
 def train(args, model, train_features, dev_features, test_features):
-    def finetune(features, optimizer, num_epoch, num_steps):
+    def finetune(features, optimizer, num_epoch, num_steps, checkpoint=None):
         best_score = -1
         train_dataloader = DataLoader(features, batch_size=args.train_batch_size, shuffle=True, collate_fn=collate_fn, drop_last=True)
         train_iterator = range(int(num_epoch))
         total_steps = int(len(train_dataloader) * num_epoch // args.gradient_accumulation_steps)
         warmup_steps = int(total_steps * args.warmup_ratio)
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=total_steps)
+        if checkpoint is not None:
+            if 'scheduler_state_dict' in checkpoint:
+                scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+                logger.info('load scheduler state dict success.')
         print("Total steps: {}".format(total_steps))
         print("Warmup steps: {}".format(warmup_steps))
 
@@ -39,6 +45,7 @@ def train(args, model, train_features, dev_features, test_features):
                           'labels': batch[2],
                           'entity_pos': batch[3],
                           'hts': batch[4],
+                          'candidates_rel': batch[5]
                           }
                 outputs = model(**inputs)
                 loss = outputs[0] / args.gradient_accumulation_steps
@@ -58,7 +65,6 @@ def train(args, model, train_features, dev_features, test_features):
                     dev_score, dev_output = evaluate(args, model, dev_features, tag="dev")
                     wandb.log(dev_output, step=num_steps)
                     logger.info(dev_output)
-                    print(dev_output)
                     if dev_score > best_score:
                         best_score = dev_score
                         # yyybug disable predict on test
@@ -68,7 +74,11 @@ def train(args, model, train_features, dev_features, test_features):
                         if args.save_path != "":
                             torch.save({'model_state_dict':model.state_dict(),
                                         'optimizer_state_dict': optimizer.state_dict(),
-                                        'epoch': epoch}, 
+                                        'scheduler_state_dict': scheduler.state_dict(),
+                                        'amp': amp.state_dict(),
+                                        'epoch': epoch,
+                                        'step': num_steps,
+                                        }, 
                                         args.save_path)
         return num_steps
 
@@ -81,22 +91,28 @@ def train(args, model, train_features, dev_features, test_features):
     
 
     optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=args.adam_epsilon)
-    if args.checkpoint and args.load_path != '':
-        ck = torch.load(args.load_path)
-        model.load_state_dict(ck['model_state_dict'])
-        optimizer.load_state_dict(ck['optimizer_state_dict'])
-        epoch = ck['epoch']
-        # args.num_train_epochs = (int(args.num_train_epochs) - int(epoch))
-        print(f'Loading checkpoint Success.')
-        logger.info(f'Loading checkpoint Success.')
-        # print(f'Loading checkpoint, start from epoch: {epoch}')
-    
-    
-    model, optimizer = amp.initialize(model, optimizer, opt_level="O1", verbosity=0)
     num_steps = 0
     set_seed(args)
+    
+    model, optimizer = amp.initialize(model, optimizer, opt_level="O1", verbosity=0)
+    
+    checkpoint = None
+    if args.checkpoint and args.load_path != '':
+        logger.info(f'Loading checkpoint ...')
+        checkpoint = torch.load(args.load_path)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        epoch = checkpoint['epoch']
+        num_steps = checkpoint['step'] if 'step' in checkpoint else 22889
+        if 'amp' in checkpoint:
+            amp.load_state_dict(checkpoint['amp'])
+        args.num_train_epochs = (int(args.num_train_epochs) - int(epoch))
+        args.warmup_ratio = 0.0
+        logger.info(f'Continue training from epoch: {epoch}, num_steps: {num_steps}')
+    
+    
     model.zero_grad()
-    finetune(train_features, optimizer, args.num_train_epochs, num_steps)
+    finetune(train_features, optimizer, args.num_train_epochs, num_steps, checkpoint)
 
 
 def evaluate(args, model, features, tag="dev"):
@@ -200,11 +216,20 @@ def main():
                         help="random seed for initialization")
     parser.add_argument("--num_class", type=int, default=97,
                         help="Number of relation types in dataset.")
+    
+    parser.add_argument("--gpu", default=0, type=int,
+                        help="GPU for training.")
+    parser.add_argument("--desc", default="see codes.", type=str)
 
     args = parser.parse_args()
+    logger.info(args)
     wandb.init(project="DocRED")
+    # wandb.run.log_code(".")
+    # backup codes.
+    os.system(f"mkdir {wandb.run.dir}/codes; cp -r main_branch/ {wandb.run.dir}/codes/")
+    logger.info(f'run cp -r main_branch/ {wandb.run.dir}/codes/ to copy python files to {wandb.run.dir}/codes')
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device(f"cuda:{args.gpu}" if torch.cuda.is_available() and args.gpu >= 0 else "cpu")
     args.n_gpu = torch.cuda.device_count()
     args.device = device
 
@@ -237,7 +262,7 @@ def main():
 
     set_seed(args)
     model = DocREModel(config, model, num_labels=args.num_labels)
-    model.to(0)
+    model.to(device)
 
     if args.load_path == "" or args.checkpoint:  # Training
         train(args, model, train_features, dev_features, test_features)

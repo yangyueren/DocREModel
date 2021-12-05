@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=1 python main_branch/train.py --data_dir ./dataset/DocRED \
+CUDA_VISIBLE_DEVICES=0 python opt_loss_branch/train.py --data_dir ./dataset/docred \
 --transformer_type bert \
 --model_name_or_path ./pretrain_models/bert-base-cased \
 --train_file train_annotated.json \
@@ -14,12 +14,13 @@ CUDA_VISIBLE_DEVICES=1 python main_branch/train.py --data_dir ./dataset/DocRED \
 --num_train_epochs 30.0 \
 --seed 66 \
 --num_class 97 \
---save_path ./saved_model/test.pth
+--desc run-bert-atlop-with-apex-with-my-threshold-loss \
+--save_path ./saved_model/opt_loss_branch/opt_loss_baselinev2.pth
 # --load_path ./saved_model/test.pth \
 # --checkpoint
 
 
-# python train.py --data_dir ./data/DocRED \
+# python train.py --data_dir ./dataset/docred \
 # --transformer_type bert \
 # --model_name_or_path ./pretrain_models/bert-base-cased \
 # --train_file train_annotated.json \
@@ -39,7 +40,7 @@ CUDA_VISIBLE_DEVICES=1 python main_branch/train.py --data_dir ./dataset/DocRED \
 
 
 ## predict
-# python train.py --data_dir ./data/DocRED \
+# python train.py --data_dir ./dataset/docred \
 # --transformer_type bert \
 # --model_name_or_path ./pretrain_models/bert-base-cased \
 # --train_file dev_only_evidence.json \

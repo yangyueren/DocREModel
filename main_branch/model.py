@@ -2,8 +2,9 @@ import torch
 import torch.nn as nn
 from opt_einsum import contract
 from main_branch.long_seq import process_long_input
-from main_branch.losses import ATLoss
-from main_branch.transe_loss import TransELoss
+# from main_branch.losses import ATLoss
+from losses import balanced_loss as ATLoss
+# from main_branch.transe_loss import TransELoss
 import copy
 import torch.nn.functional as F
 
@@ -20,7 +21,7 @@ class DocREModel(nn.Module):
         self.bilinear = nn.Linear(emb_size * block_size, config.num_labels) # config.num_labels is 97
 
         self.attn1 = nn.Linear(emb_size*2, 1)
-        self.transe = TransELoss(emb_size)
+        # self.transe = TransELoss(emb_size)
         
 
         self.emb_size = emb_size
@@ -192,6 +193,7 @@ class DocREModel(nn.Module):
                 labels=None,
                 entity_pos=None,
                 hts=None,
+                candidates_rel=None,
                 instance_mask=None,
                 ):
 
@@ -200,26 +202,26 @@ class DocREModel(nn.Module):
         hs, rs, ts, hss_list, rss_list, tss_list = self.get_hrt(sequence_output, attention, entity_pos, hts)
         
         # hs, ts = self.update_ht(input_ids, sequence_output, entity_pos, hts, hss_list, rss_list, tss_list)
-        loss_t = torch.tensor(0.0).to(sequence_output.device)
-        # import pdb; pdb.set_trace()
-        if labels is not None:
-            
-            rels = [torch.tensor(label) for label in labels]
-            rels = torch.cat(rels, dim=0).to(sequence_output.device)
-            loss_t = self.transe(hs, rs, ts, rels)
+        
 
 
         hs = torch.tanh(self.head_extractor(torch.cat([hs, rs], dim=1)))
         ts = torch.tanh(self.tail_extractor(torch.cat([ts, rs], dim=1)))
+        # loss_t = torch.tensor(0.0).to(sequence_output.device)
+        # # import pdb; pdb.set_trace()
+        # if labels is not None:
+        #     rels = [torch.tensor(label) for label in labels]
+        #     rels = torch.cat(rels, dim=0).to(sequence_output.device)
+        #     loss_t = self.transe(hs, rs, ts, rels) # # yyybug , remove transe
         b1 = hs.view(-1, self.emb_size // self.block_size, self.block_size)
         b2 = ts.view(-1, self.emb_size // self.block_size, self.block_size)
         bl = (b1.unsqueeze(3) * b2.unsqueeze(2)).view(-1, self.emb_size * self.block_size) # outer product
         logits = self.bilinear(bl)
 
-        output = (self.loss_fnt.get_label(logits, num_labels=self.num_labels),)
+        output = (self.loss_fnt.get_label(logits, num_labels=self.num_labels, candidates_rel=candidates_rel),)
         if labels is not None:
             labels = [torch.tensor(label) for label in labels]
             labels = torch.cat(labels, dim=0).to(logits)
-            loss = self.loss_fnt(logits.float(), labels.float())
-            output = (loss.to(sequence_output) + loss_t,) + output
+            loss = self.loss_fnt(logits.float(), labels.float(), candidates_rel)
+            output = (loss.to(sequence_output),) + output
         return output
