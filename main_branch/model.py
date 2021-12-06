@@ -4,7 +4,7 @@ from opt_einsum import contract
 from main_branch.long_seq import process_long_input
 # from main_branch.losses import ATLoss
 from losses import balanced_loss as ATLoss
-# from main_branch.transe_loss import TransELoss
+from main_branch.transe_loss import TransELoss
 import copy
 import torch.nn.functional as F
 

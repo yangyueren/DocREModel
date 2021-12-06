@@ -15,7 +15,7 @@ CUDA_VISIBLE_DEVICES=0 python opt_loss_branch/train.py --data_dir ./dataset/docr
 --seed 66 \
 --num_class 97 \
 --desc run-bert-atlop-with-apex-with-my-threshold-loss \
---save_path ./saved_model/opt_loss_branch/opt_loss_baselinev2.pth
+--load_path ./saved_model/opt_loss_branch/opt_loss_baseline.pth
 # --load_path ./saved_model/test.pth \
 # --checkpoint
 

@@ -2,12 +2,14 @@ from tqdm import tqdm
 import ujson as json
 
 docred_rel2id = json.load(open('./dataset/docred/DocRED_baseline_metadata/rel2id.json', 'r'))
-docred_ner2id = json.load(open('/home/ps/disk_sdb/yyr/codes/ATLOP/dataset/docred/DocRED_baseline_metadata/ner2id.json', 'r'))
+docred_ner2id = json.load(open('./dataset/docred/DocRED_baseline_metadata/ner2id.json', 'r'))
+docred_rel2rpf1num = json.load(open('./common/each_rel_pre_recall_f1_num.json', 'r'))
+docred_rel2rpf1num = {docred_rel2id[k]: v for k, v in docred_rel2rpf1num.items()}
 cdr_rel2id = {'1:NR:2': 0, '1:CID:2': 1}
 gda_rel2id = {'1:NR:2': 0, '1:GDA:2': 1}
 
 from ast import literal_eval
-ner_pair2rel = json.load(open('/home/ps/disk_sdb/yyr/codes/ATLOP/common/ner_pair2rel.json', 'r'))
+ner_pair2rel = json.load(open('./common/ner_pair2rel.json', 'r'))
 ner_pair2rel = {literal_eval(k): v for k, v in ner_pair2rel.items()}
 
 def chunks(l, n):
@@ -27,7 +29,7 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
         return None
     with open(file_in, "r") as fh:
         # yyybug
-        data = json.load(fh)[:20]
+        data = json.load(fh)[:]
 
     for sample in tqdm(data, desc="Example"):
         sents = []
@@ -78,11 +80,49 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
                 end = sent_map[m["sent_id"]][m["pos"][1]]
                 entity_pos[-1].append((start, end,))
 
+
+        
         relations, hts = [], []
         candidates_rel = []
         for h, t in train_triple.keys():
             relation = [0] * len(docred_rel2id)
-            h_ner, t_ner = 0, 0
+            
+            for mention in train_triple[h, t]:
+                if docred_rel2rpf1num[mention['relation']][2] < 0.5:
+                    relation[mention["relation"]] = 1
+                    evidence = mention["evidence"]
+            if sum(relation) > 0:
+                relations.append(relation)
+                hts.append([h, t])
+
+                # import pdb; pdb.set_trace()
+                h_ner = docred_ner2id[entities[h][0]['type']]
+                t_ner = docred_ner2id[entities[t][0]['type']]
+                candidates_rel.append(ner_pair2rel[(h_ner, t_ner)])
+                pos_samples += 1
+        
+        import random
+        for h in range(len(entities)):
+            for t in range(len(entities)):
+                if h != t and [h, t] not in hts:
+                    # import pdb; pdb.set_trace()
+                    if random.random() < 0.7 or 'train' not in file_in:
+                        relation = [1] + [0] * (len(docred_rel2id) - 1)
+                        relations.append(relation)
+                        hts.append([h, t])
+                        h_ner = docred_ner2id[entities[h][0]['type']]
+                        t_ner = docred_ner2id[entities[t][0]['type']]
+                        
+                        candidates_rel.append(ner_pair2rel[(h_ner, t_ner)])
+                        neg_samples += 1
+        
+
+        """
+        relations, hts = [], []
+        candidates_rel = []
+        for h, t in train_triple.keys():
+            relation = [0] * len(docred_rel2id)
+            
             for mention in train_triple[h, t]:
                 relation[mention["relation"]] = 1
                 evidence = mention["evidence"]
@@ -94,7 +134,7 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
             t_ner = docred_ner2id[entities[t][0]['type']]
             candidates_rel.append(ner_pair2rel[(h_ner, t_ner)])
             pos_samples += 1
-
+        
         for h in range(len(entities)):
             for t in range(len(entities)):
                 if h != t and [h, t] not in hts:
@@ -106,9 +146,11 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
                     
                     candidates_rel.append(ner_pair2rel[(h_ner, t_ner)])
                     neg_samples += 1
+        
 
         assert len(relations) == len(entities) * (len(entities) - 1)
-
+        """
+        
         sents = sents[:max_seq_length - 2]
         
         input_ids = tokenizer.convert_tokens_to_ids(sents) # [115, 163, 2556, 14099]
@@ -122,7 +164,8 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
                    'candidates_rel': candidates_rel,
                    'title': sample['title'],
                    }
-        features.append(feature)
+        if len(feature['candidates_rel']) > 0:
+            features.append(feature)
 
     print("# of documents {}.".format(i_line))
     print("# of positive examples {}.".format(pos_samples))

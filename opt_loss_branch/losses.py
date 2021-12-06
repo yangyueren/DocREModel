@@ -8,7 +8,7 @@ class ATLoss(nn.Module):
         super().__init__()
         
 
-    def forward(self, logits, labels):
+    def forward(self, logits, labels, candidates_rel=None):
 
         # import pdb; pdb.set_trace()
         # TH label
@@ -42,7 +42,7 @@ class ATLoss(nn.Module):
         loss = loss.mean()
         return loss
 
-    def get_label(self, logits, num_labels=-1):
+    def get_label(self, logits, num_labels=-1, candidates_rel=None):
         th_logit = logits[:, 0].unsqueeze(1)
         output = torch.zeros_like(logits).to(logits)
         mask = (logits > th_logit)
@@ -51,5 +51,11 @@ class ATLoss(nn.Module):
             top_v = top_v[:, -1]
             mask = (logits >= top_v.unsqueeze(1)) & mask
         output[mask] = 1.0
+
+        assert candidates_rel is not None, 'candidate error'
+        not_candidates_rel_mask = (candidates_rel == 0)
+        output[not_candidates_rel_mask] = 0.0
+
+
         output[:, 0] = (output.sum(1) == 0.).to(logits)
         return output

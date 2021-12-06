@@ -126,6 +126,7 @@ def evaluate(args, model, features, tag="dev"):
                   'attention_mask': batch[1].to(args.device),
                   'entity_pos': batch[3],
                   'hts': batch[4],
+                  'candidates_rel': batch[5]
                   }
 
         with torch.no_grad():
@@ -136,6 +137,9 @@ def evaluate(args, model, features, tag="dev"):
 
     preds = np.concatenate(preds, axis=0).astype(np.float32)
     ans = to_official(preds, features)
+    with open('./dataset/docred_pred/dev_pred_result_atlop_in_tail_classv2.json', 'w') as f:
+        json.dump(ans, f)
+
     best_f1, best_f1_ign = 0, 0
     if len(ans) > 0:
         best_f1, _, best_f1_ign, _ = official_evaluate(ans, args.data_dir)
@@ -157,6 +161,7 @@ def report(args, model, features):
                   'attention_mask': batch[1].to(args.device),
                   'entity_pos': batch[3],
                   'hts': batch[4],
+                  'candidates_rel': batch[5]
                   }
 
         with torch.no_grad():
@@ -267,13 +272,21 @@ def main():
     if args.load_path == "" or args.checkpoint:  # Training
         train(args, model, train_features, dev_features, test_features)
     else:  # Testing
+        logger.info("test...")
+        # import pdb; pdb.set_trace()
         model = amp.initialize(model, opt_level="O1", verbosity=0)
-        model.load_state_dict(torch.load(args.load_path)['model_state_dict'])
+        ck = torch.load(args.load_path)
+
+        if 'model_state_dict' in ck:
+            model.load_state_dict(torch.load(args.load_path)['model_state_dict'])
+        else:
+            model.load_state_dict(ck)
         dev_score, dev_output = evaluate(args, model, dev_features, tag="dev")
         print(dev_score, dev_output)
-        pred = report(args, model, test_features)
-        with open("result.json", "w") as fh:
-            json.dump(pred, fh)
+        logger.info(dev_score, dev_output)
+        # pred = report(args, model, test_features)
+        # with open("result.json", "w") as fh:
+        #     json.dump(pred, fh)
 
 
 if __name__ == "__main__":

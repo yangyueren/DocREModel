@@ -52,10 +52,10 @@ class ATLoss(nn.Module):
 
     def forward(self, logits, labels, candidates_rel=None):
 
-        not_candidates_rel_mask = (candidates_rel == 0)
-        not_candidates_rel_mask[:, 0] = 0.0
+        # not_candidates_rel_mask = (candidates_rel == 0)
+        # not_candidates_rel_mask[:, 0] = 0.0
         
-        logits = logits + (-1e30) * not_candidates_rel_mask
+        # logits = logits + (-1e30) * not_candidates_rel_mask
 
 
         # TH label
@@ -90,8 +90,8 @@ class ATLoss(nn.Module):
         output[mask] = 1.0
 
         # yyybug
-        not_candidates_rel_mask = (candidates_rel == 0)
-        output[not_candidates_rel_mask] = 0.0
+        # not_candidates_rel_mask = (candidates_rel == 0)
+        # output[not_candidates_rel_mask] = 0.0
 
 
         output[:, 0] = (output.sum(1) == 0.).to(logits)

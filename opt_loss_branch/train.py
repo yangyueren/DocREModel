@@ -45,6 +45,7 @@ def train(args, model, train_features, dev_features, test_features):
                           'labels': batch[2],
                           'entity_pos': batch[3],
                           'hts': batch[4],
+                          'candidates_rel': batch[5]
                           }
                 outputs = model(**inputs)
                 loss = outputs[0] / args.gradient_accumulation_steps
@@ -125,6 +126,7 @@ def evaluate(args, model, features, tag="dev"):
                   'attention_mask': batch[1].to(args.device),
                   'entity_pos': batch[3],
                   'hts': batch[4],
+                  'candidates_rel': batch[5]
                   }
 
         with torch.no_grad():
@@ -267,9 +269,9 @@ def main():
         model.load_state_dict(torch.load(args.load_path)['model_state_dict'])
         dev_score, dev_output = evaluate(args, model, dev_features, tag="dev")
         print(dev_score, dev_output)
-        pred = report(args, model, test_features)
-        with open("result.json", "w") as fh:
-            json.dump(pred, fh)
+        # pred = report(args, model, test_features)
+        # with open("result.json", "w") as fh:
+        #     json.dump(pred, fh)
 
 
 if __name__ == "__main__":

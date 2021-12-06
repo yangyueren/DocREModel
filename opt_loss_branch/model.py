@@ -3,7 +3,7 @@ import torch.nn as nn
 from opt_einsum import contract
 from opt_loss_branch.long_seq import process_long_input
 from opt_loss_branch.losses import ATLoss
-from opt_loss_branch.transe_loss import TransELoss
+# from opt_loss_branch.transe_loss import TransELoss
 import copy
 import torch.nn.functional as F
 
@@ -20,7 +20,7 @@ class DocREModel(nn.Module):
         self.bilinear = nn.Linear(emb_size * block_size, config.num_labels) # config.num_labels is 97
 
         self.attn1 = nn.Linear(emb_size*2, 1)
-        self.transe = TransELoss(emb_size)
+        # self.transe = TransELoss(emb_size)
         
 
         self.emb_size = emb_size
@@ -192,6 +192,7 @@ class DocREModel(nn.Module):
                 labels=None,
                 entity_pos=None,
                 hts=None,
+                candidates_rel=None,
                 instance_mask=None,
                 ):
 
@@ -216,10 +217,10 @@ class DocREModel(nn.Module):
         bl = (b1.unsqueeze(3) * b2.unsqueeze(2)).view(-1, self.emb_size * self.block_size) # outer product
         logits = self.bilinear(bl)
 
-        output = (self.loss_fnt.get_label(logits, num_labels=self.num_labels),)
+        output = (self.loss_fnt.get_label(logits, num_labels=self.num_labels, candidates_rel=candidates_rel),)
         if labels is not None:
             labels = [torch.tensor(label) for label in labels]
             labels = torch.cat(labels, dim=0).to(logits)
-            loss = self.loss_fnt(logits.float(), labels.float())
-            output = (loss.to(sequence_output) + loss_t,) + output
+            loss = self.loss_fnt(logits.float(), labels.float(), candidates_rel)
+            output = (loss.to(sequence_output),) + output
         return output
