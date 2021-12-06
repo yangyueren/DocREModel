@@ -84,6 +84,7 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
         
         relations, hts = [], []
         candidates_rel = []
+        hts_mine = []
         for h, t in train_triple.keys():
             relation = [0] * len(docred_rel2id)
             
@@ -91,6 +92,7 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
                 if docred_rel2rpf1num[mention['relation']][2] < 0.5:
                     relation[mention["relation"]] = 1
                     evidence = mention["evidence"]
+            hts_mine.append([h,t])
             if sum(relation) > 0:
                 relations.append(relation)
                 hts.append([h, t])
@@ -104,17 +106,17 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
         import random
         for h in range(len(entities)):
             for t in range(len(entities)):
-                if h != t and [h, t] not in hts:
+                if h != t and [h, t] not in hts_mine:
                     # import pdb; pdb.set_trace()
-                    if random.random() < 0.7 or 'train' not in file_in:
-                        relation = [1] + [0] * (len(docred_rel2id) - 1)
-                        relations.append(relation)
-                        hts.append([h, t])
-                        h_ner = docred_ner2id[entities[h][0]['type']]
-                        t_ner = docred_ner2id[entities[t][0]['type']]
-                        
-                        candidates_rel.append(ner_pair2rel[(h_ner, t_ner)])
-                        neg_samples += 1
+                    # if random.random() < 0.7 or 'train' not in file_in:
+                    relation = [1] + [0] * (len(docred_rel2id) - 1)
+                    relations.append(relation)
+                    hts.append([h, t])
+                    h_ner = docred_ner2id[entities[h][0]['type']]
+                    t_ner = docred_ner2id[entities[t][0]['type']]
+                    
+                    candidates_rel.append(ner_pair2rel[(h_ner, t_ner)])
+                    neg_samples += 1
         
 
         """
@@ -150,7 +152,7 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
 
         assert len(relations) == len(entities) * (len(entities) - 1)
         """
-        
+
         sents = sents[:max_seq_length - 2]
         
         input_ids = tokenizer.convert_tokens_to_ids(sents) # [115, 163, 2556, 14099]

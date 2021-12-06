@@ -137,7 +137,7 @@ def evaluate(args, model, features, tag="dev"):
 
     preds = np.concatenate(preds, axis=0).astype(np.float32)
     ans = to_official(preds, features)
-    with open('./dataset/docred_pred/dev_pred_result_atlop_in_tail_classv2.json', 'w') as f:
+    with open('./dataset/docred_pred/dev_pred_result_atlop_in_tail_classv3.json', 'w') as f:
         json.dump(ans, f)
 
     best_f1, best_f1_ign = 0, 0

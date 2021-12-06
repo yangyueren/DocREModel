@@ -39,7 +39,7 @@ CUDA_VISIBLE_DEVICES=0 python main_branch/train.py --data_dir ./dataset/docred \
 --seed 66 \
 --num_class 97 \
 --desc run-original-atlop-only-in-class-with-f1-below-0.5-with-more-negs-using-balancesloss-docunet \
---load_path ./saved_model/main_branch/atlop_in_tail_classv2.pth
+--save_path ./saved_model/main_branch/atlop_in_tail_classv3.pth
 
 
 ## predict
