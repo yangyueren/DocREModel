@@ -193,12 +193,11 @@ class DocREModel(nn.Module):
                 labels=None,
                 entity_pos=None,
                 hts=None,
-                candidates_rel=None,
                 instance_mask=None,
                 ):
 
         sequence_output, attention = self.encode(input_ids, attention_mask)
-        candidates_rel = candidates_rel.to(sequence_output.device)
+    
         
         hs, rs, ts, hss_list, rss_list, tss_list = self.get_hrt(sequence_output, attention, entity_pos, hts)
         
@@ -219,10 +218,10 @@ class DocREModel(nn.Module):
         bl = (b1.unsqueeze(3) * b2.unsqueeze(2)).view(-1, self.emb_size * self.block_size) # outer product
         logits = self.bilinear(bl)
 
-        output = (self.loss_fnt.get_label(logits, num_labels=self.num_labels, candidates_rel=candidates_rel),)
+        output = (self.loss_fnt.get_label(logits, num_labels=self.num_labels),)
         if labels is not None:
             labels = [torch.tensor(label) for label in labels]
             labels = torch.cat(labels, dim=0).to(logits)
-            loss = self.loss_fnt(logits.float(), labels.float(), candidates_rel)
+            loss = self.loss_fnt(logits.float(), labels.float())
             output = (loss.to(sequence_output),) + output
         return output

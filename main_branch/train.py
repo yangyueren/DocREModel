@@ -5,7 +5,7 @@ sys.path.append('.')
 
 import numpy as np
 import torch
-from apex import amp
+# from apex import amp
 import ujson as json
 from torch.utils.data import DataLoader
 from transformers import AutoConfig, AutoModel, AutoTokenizer
@@ -45,15 +45,18 @@ def train(args, model, train_features, dev_features, test_features):
                           'labels': batch[2],
                           'entity_pos': batch[3],
                           'hts': batch[4],
-                          'candidates_rel': batch[5]
                           }
                 outputs = model(**inputs)
                 loss = outputs[0] / args.gradient_accumulation_steps
-                with amp.scale_loss(loss, optimizer) as scaled_loss:
-                    scaled_loss.backward()
+                # with amp.scale_loss(loss, optimizer) as scaled_loss:
+                #     scaled_loss.backward()
+                loss.backward()
                 if step % args.gradient_accumulation_steps == 0:
+                    # yyybug
                     if args.max_grad_norm > 0:
-                        torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), args.max_grad_norm)
+                        # torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), args.max_grad_norm)
+                        torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
+                        # torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), args.max_grad_norm)
                     optimizer.step()
                     scheduler.step()
 
@@ -75,7 +78,7 @@ def train(args, model, train_features, dev_features, test_features):
                             torch.save({'model_state_dict':model.state_dict(),
                                         'optimizer_state_dict': optimizer.state_dict(),
                                         'scheduler_state_dict': scheduler.state_dict(),
-                                        'amp': amp.state_dict(),
+                                        # 'amp': amp.state_dict(),
                                         'epoch': epoch,
                                         'step': num_steps,
                                         }, 
@@ -94,7 +97,7 @@ def train(args, model, train_features, dev_features, test_features):
     num_steps = 0
     set_seed(args)
     
-    model, optimizer = amp.initialize(model, optimizer, opt_level="O1", verbosity=0)
+    # model, optimizer = amp.initialize(model, optimizer, opt_level="O1", verbosity=0)
     
     checkpoint = None
     if args.checkpoint and args.load_path != '':
@@ -104,8 +107,8 @@ def train(args, model, train_features, dev_features, test_features):
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         epoch = checkpoint['epoch']
         num_steps = checkpoint['step'] if 'step' in checkpoint else 22889
-        if 'amp' in checkpoint:
-            amp.load_state_dict(checkpoint['amp'])
+        # if 'amp' in checkpoint:
+        #     amp.load_state_dict(checkpoint['amp'])
         args.num_train_epochs = (int(args.num_train_epochs) - int(epoch))
         args.warmup_ratio = 0.0
         logger.info(f'Continue training from epoch: {epoch}, num_steps: {num_steps}')
@@ -126,7 +129,6 @@ def evaluate(args, model, features, tag="dev"):
                   'attention_mask': batch[1].to(args.device),
                   'entity_pos': batch[3],
                   'hts': batch[4],
-                  'candidates_rel': batch[5]
                   }
 
         with torch.no_grad():
@@ -161,7 +163,6 @@ def report(args, model, features):
                   'attention_mask': batch[1].to(args.device),
                   'entity_pos': batch[3],
                   'hts': batch[4],
-                  'candidates_rel': batch[5]
                   }
 
         with torch.no_grad():

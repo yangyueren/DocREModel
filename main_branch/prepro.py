@@ -81,7 +81,7 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
                 entity_pos[-1].append((start, end,))
 
 
-        
+        """ samples thar f1<0.5
         relations, hts = [], []
         candidates_rel = []
         hts_mine = []
@@ -121,7 +121,6 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
 
         """
         relations, hts = [], []
-        candidates_rel = []
         for h, t in train_triple.keys():
             relation = [0] * len(docred_rel2id)
             
@@ -134,7 +133,6 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
             # import pdb; pdb.set_trace()
             h_ner = docred_ner2id[entities[h][0]['type']]
             t_ner = docred_ner2id[entities[t][0]['type']]
-            candidates_rel.append(ner_pair2rel[(h_ner, t_ner)])
             pos_samples += 1
         
         for h in range(len(entities)):
@@ -146,12 +144,11 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
                     h_ner = docred_ner2id[entities[h][0]['type']]
                     t_ner = docred_ner2id[entities[t][0]['type']]
                     
-                    candidates_rel.append(ner_pair2rel[(h_ner, t_ner)])
                     neg_samples += 1
         
 
         assert len(relations) == len(entities) * (len(entities) - 1)
-        """
+        
 
         sents = sents[:max_seq_length - 2]
         
@@ -163,11 +160,9 @@ def read_docred(file_in, tokenizer, max_seq_length=1024):
                    'entity_pos': entity_pos,
                    'labels': relations,
                    'hts': hts,
-                   'candidates_rel': candidates_rel,
                    'title': sample['title'],
                    }
-        if len(feature['candidates_rel']) > 0:
-            features.append(feature)
+        features.append(feature)
 
     print("# of documents {}.".format(i_line))
     print("# of positive examples {}.".format(pos_samples))

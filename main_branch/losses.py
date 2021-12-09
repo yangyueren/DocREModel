@@ -26,13 +26,13 @@ class balanced_loss(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, logits, labels, candidates_rel=None):
+    def forward(self, logits, labels):
 
         loss = multilabel_categorical_crossentropy(labels,logits)
         loss = loss.mean()
         return loss
 
-    def get_label(self, logits, num_labels=-1, candidates_rel=None):
+    def get_label(self, logits, num_labels=-1):
         th_logit = torch.zeros_like(logits[..., :1])
         output = torch.zeros_like(logits).to(logits)
         mask = (logits > th_logit)
@@ -50,12 +50,9 @@ class ATLoss(nn.Module):
     def __init__(self):
         super().__init__()
 
-    def forward(self, logits, labels, candidates_rel=None):
+    def forward(self, logits, labels):
 
-        # not_candidates_rel_mask = (candidates_rel == 0)
-        # not_candidates_rel_mask[:, 0] = 0.0
-        
-        # logits = logits + (-1e30) * not_candidates_rel_mask
+
 
 
         # TH label
@@ -79,7 +76,7 @@ class ATLoss(nn.Module):
         loss = loss.mean()
         return loss
 
-    def get_label(self, logits, num_labels=-1, candidates_rel=None):
+    def get_label(self, logits, num_labels=-1):
         th_logit = logits[:, 0].unsqueeze(1)
         output = torch.zeros_like(logits).to(logits)
         mask = (logits > th_logit)
@@ -89,9 +86,7 @@ class ATLoss(nn.Module):
             mask = (logits >= top_v.unsqueeze(1)) & mask
         output[mask] = 1.0
 
-        # yyybug
-        # not_candidates_rel_mask = (candidates_rel == 0)
-        # output[not_candidates_rel_mask] = 0.0
+
 
 
         output[:, 0] = (output.sum(1) == 0.).to(logits)
