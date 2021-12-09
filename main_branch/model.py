@@ -198,6 +198,7 @@ class DocREModel(nn.Module):
                 ):
 
         sequence_output, attention = self.encode(input_ids, attention_mask)
+        candidates_rel = candidates_rel.to(sequence_output.device)
         
         hs, rs, ts, hss_list, rss_list, tss_list = self.get_hrt(sequence_output, attention, entity_pos, hts)
         
