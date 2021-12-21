@@ -3,14 +3,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class ATLoss(nn.Module):
+class PromptLoss(nn.Module):
     def __init__(self):
         super().__init__()
-        
 
     def forward(self, logits, labels):
-
-        # import pdb; pdb.set_trace()
         # TH label
         th_label = torch.zeros_like(labels, dtype=torch.float).to(labels)
         th_label[:, 0] = 1.0
@@ -21,20 +18,10 @@ class ATLoss(nn.Module):
 
         # Rank positive classes to TH
         logit1 = logits - (1 - p_mask) * 1e30
-        pos_attn = logit1 - logit1[:, 0].unsqueeze(1)
-        pos_attn = (1-F.softmax(pos_attn, dim=1)) * 10
-        # loss1 = -(F.log_softmax(logit1, dim=-1) * labels * pos_attn).sum(1) # yyybug
         loss1 = -(F.log_softmax(logit1, dim=-1) * labels).sum(1)
 
         # Rank TH to negative classes
         logit2 = logits - (1 - n_mask) * 1e30
-        neg_attn = logit2[:, 0].unsqueeze(1) - logit2
-        neg_attn = (1-F.softmax(neg_attn, dim=1)) * 10
-
-        # yyybug
-        # loss2 = torch.sum( -torch.log( (torch.exp(logit2)*neg_attn) / torch.sum( torch.exp(logit2) * neg_attn )) * th_label,   dim=1)
-
-        # original
         loss2 = -(F.log_softmax(logit2, dim=-1) * th_label).sum(1)
 
         # Sum two parts
@@ -51,6 +38,5 @@ class ATLoss(nn.Module):
             top_v = top_v[:, -1]
             mask = (logits >= top_v.unsqueeze(1)) & mask
         output[mask] = 1.0
-
         output[:, 0] = (output.sum(1) == 0.).to(logits)
         return output

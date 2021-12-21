@@ -1,9 +1,11 @@
 import torch
 import torch.nn as nn
 from opt_einsum import contract
-from long_seq import process_long_input
-from losses import ATLoss
-from transe_loss import TransELoss
+from prompt_branch.long_seq import process_long_input
+from prompt_branch.losses import ATLoss
+# from prompt_branch.prompt_loss import PromptLoss
+import copy
+import torch.nn.functional as F
 
 class DocREModel(nn.Module):
     def __init__(self, config, model, emb_size=768, block_size=64, num_labels=-1):
@@ -12,16 +14,19 @@ class DocREModel(nn.Module):
         self.model = model
         self.hidden_size = config.hidden_size
         self.loss_fnt = ATLoss()
+        # self.loss_fn_prompt = PromptLoss()
 
         self.head_extractor = nn.Linear(2 * config.hidden_size, emb_size)
         self.tail_extractor = nn.Linear(2 * config.hidden_size, emb_size)
-        self.bilinear = nn.Linear(emb_size * block_size, config.num_labels)
+        self.bilinear = nn.Linear(emb_size * block_size, config.num_labels) # config.num_labels is 97
+
+        # self.transe = TransELoss(emb_size)
+        
 
         self.emb_size = emb_size
         self.block_size = block_size
-        self.num_labels = num_labels
+        self.num_labels = num_labels # this num_labels is 4
 
-        self.transe = TransELoss(emb_size)
 
     def encode(self, input_ids, attention_mask):
         config = self.config
@@ -32,7 +37,20 @@ class DocREModel(nn.Module):
             start_tokens = [config.cls_token_id]
             end_tokens = [config.sep_token_id, config.sep_token_id]
         sequence_output, attention = process_long_input(self.model, input_ids, attention_mask, start_tokens, end_tokens)
-        return sequence_output, attention
+        output = self.model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            output_attentions=True,
+            output_hidden_states=True
+        )
+        sequence_output = output.hidden_states[-1]
+        attention = output.attentions[-1]
+        # import pdb;pdb.set_trace()
+        mask_index = torch.where(input_ids== config.mask_token_id)
+        predict_token_id = config.verbalizer.get_all_verbalizer_tokenids()
+        prob = output.logits[mask_index][:,predict_token_id]
+
+        return sequence_output, attention, prob.reshape(-1, len(predict_token_id))
 
     def get_hrt(self, sequence_output, attention, entity_pos, hts):
         offset = 1 if self.config.transformer_type in ["bert", "roberta"] else 0
@@ -69,6 +87,7 @@ class DocREModel(nn.Module):
             entity_atts = torch.stack(entity_atts, dim=0)  # [n_e, h, seq_len]
 
             ht_i = torch.LongTensor(hts[i]).to(sequence_output.device)
+            
             hs = torch.index_select(entity_embs, 0, ht_i[:, 0])
             ts = torch.index_select(entity_embs, 0, ht_i[:, 1])
 
@@ -93,31 +112,34 @@ class DocREModel(nn.Module):
                 hts=None,
                 instance_mask=None,
                 ):
+        # import pdb;pdb.set_trace()
+        
+        sequence_output, attention, prob = self.encode(input_ids, attention_mask)
 
-        sequence_output, attention = self.encode(input_ids, attention_mask)
-        hs, rs, ts = self.get_hrt(sequence_output, attention, entity_pos, hts)
+        if self.config.predict_type == 'atlop':
+            hs, rs, ts = self.get_hrt(sequence_output, attention, entity_pos, hts)
+            hs = torch.tanh(self.head_extractor(torch.cat([hs, rs], dim=1)))
+            ts = torch.tanh(self.tail_extractor(torch.cat([ts, rs], dim=1)))
+            b1 = hs.view(-1, self.emb_size // self.block_size, self.block_size)
+            b2 = ts.view(-1, self.emb_size // self.block_size, self.block_size)
+            bl = (b1.unsqueeze(3) * b2.unsqueeze(2)).view(-1, self.emb_size * self.block_size)
+            logits = self.bilinear(bl)
 
-        hs = torch.tanh(self.head_extractor(torch.cat([hs, rs], dim=1)))
-        ts = torch.tanh(self.tail_extractor(torch.cat([ts, rs], dim=1)))
+            output = (self.loss_fnt.get_label(logits, num_labels=self.num_labels),)
 
-        loss_t = torch.tensor(0.0).to(sequence_output.device)
-        # import pdb; pdb.set_trace()
-        if labels is not None:
-            rels = [torch.tensor(label) for label in labels]
-            rels = torch.cat(rels, dim=0).to(sequence_output.device)
-            loss_t = self.transe(hs, rs, ts, rels) # # yyybug , remove transe
-
-        b1 = hs.view(-1, self.emb_size // self.block_size, self.block_size)
-        b2 = ts.view(-1, self.emb_size // self.block_size, self.block_size)
-        bl = (b1.unsqueeze(3) * b2.unsqueeze(2)).view(-1, self.emb_size * self.block_size)
-        logits = self.bilinear(bl)
-
-        output = (self.loss_fnt.get_label(logits, num_labels=self.num_labels),)
-        output = (self.transe.get_label(hs, rs, ts, output[0], margin=self.config.margin), ) #yyybug
-        if labels is not None:
-            labels = [torch.tensor(label) for label in labels]
-            labels = torch.cat(labels, dim=0).to(logits)
-            loss = self.loss_fnt(logits.float(), labels.float()) + loss_t * 0.01
-            
-            output = (loss.to(sequence_output),) + output
-        return output
+            if labels is not None:
+                labels = [torch.tensor(label) for label in labels]
+                labels = torch.cat(labels, dim=0).to(sequence_output.device)
+                loss = self.loss_fnt(logits.float(), labels.float())
+                output = (loss.to(sequence_output),) + output
+            return output
+        elif self.config.predict_type == 'prompt':
+            output = (self.loss_fnt.get_label(prob, num_labels=self.num_labels),)
+            if labels is not None:
+                labels = [torch.tensor(label) for label in labels]
+                labels = torch.cat(labels, dim=0).to(sequence_output.device)
+                loss = self.loss_fnt(prob.float(), labels.float())
+                output = (loss.to(sequence_output),) + output
+            return output
+        else:
+            raise NotImplementedError

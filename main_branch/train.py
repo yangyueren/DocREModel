@@ -17,7 +17,7 @@ from main_branch.evaluation import to_official, official_evaluate
 import wandb
 from tqdm import tqdm
 
-from common.mylogger import logger
+from main_branch.mylogger import logger
 
 
 def train(args, model, train_features, dev_features, test_features):
@@ -139,8 +139,8 @@ def evaluate(args, model, features, tag="dev"):
 
     preds = np.concatenate(preds, axis=0).astype(np.float32)
     ans = to_official(preds, features)
-    with open('./dataset/docred_pred/dev_pred_result_atlop_in_tail_classv3.json', 'w') as f:
-        json.dump(ans, f)
+    # with open('./dataset/docred_pred/dev_pred_result_atlop_in_tail_classv3.json', 'w') as f:
+    #     json.dump(ans, f)
 
     best_f1, best_f1_ign = 0, 0
     if len(ans) > 0:
@@ -275,7 +275,7 @@ def main():
     else:  # Testing
         logger.info("test...")
         # import pdb; pdb.set_trace()
-        model = amp.initialize(model, opt_level="O1", verbosity=0)
+        # model = amp.initialize(model, opt_level="O1", verbosity=0)
         ck = torch.load(args.load_path)
 
         if 'model_state_dict' in ck:

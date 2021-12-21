@@ -1,0 +1,23 @@
+CUDA_VISIBLE_DEVICES=0,1 python dp_prompt_branch/train.py --data_dir ./dataset/docred_prompt \
+--transformer_type bert \
+--model_name_or_path ./pretrain_models/bert-base-cased \
+--train_file train_annotated_prompt.pkl \
+--dev_file dev_prompt.pkl \
+--test_file dev_prompt.pkl \
+--train_batch_size 40 \
+--test_batch_size 40 \
+--gradient_accumulation_steps 1 \
+--num_labels 4 \
+--max_seq_length 512 \
+--learning_rate 1e-5 \
+--max_grad_norm 1.0 \
+--warmup_ratio 0.06 \
+--num_train_epochs 60.0 \
+--seed 66 \
+--num_class 97 \
+--predict_type prompt \
+--sample_ratio 0.0001 \
+--evaluation_epoch 1 \
+--desc run-with-new-prompt-512 \
+--save_path ./saved_model/dp_prompt_branch/baseline.pth
+
